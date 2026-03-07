@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-import time
 import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import time
 
 # إعدادات تليجرام
 BOT_TOKEN = '7204967716:AAGJZ5lGRqcn0DNR2zJelfRqCFpZOvGeN8U'
@@ -12,70 +12,60 @@ CHAT_ID = '1103230055'
 # كلمات البحث
 keywords = ["الأهلي", "Al Ahly", "Ahly", "AL-AHLY", "Al Ahly FC"]
 
+# رابط الموقع
+url = "https://www.tazkarti.com/#/matches"
+
 # إعداد Selenium
 options = Options()
-options.add_argument('--headless')
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
+options.add_argument("--headless")
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
 
-# رابط موقع تذكرتي
-url = 'https://www.tazkarti.com/#/matches'
-
-# متغير لمنع تكرار الإرسال
-ticket_sent = False
 
 def send_telegram_message(message):
     telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    payload = {'chat_id': CHAT_ID, 'text': message}
+    payload = {"chat_id": CHAT_ID, "text": message}
     try:
         requests.post(telegram_url, data=payload)
+        print("✅ تم إرسال رسالة تليجرام")
     except Exception as e:
-        print("❌ فشل إرسال رسالة تليجرام:", e)
+        print("❌ فشل إرسال الرسالة:", e)
+
 
 def check_tickets():
-    global ticket_sent
-    print("⏳ جاري التحقق من تذاكر الأهلي...")
+    print("⏳ جاري فحص موقع تذكرتي...")
 
+    driver = None
     try:
         driver = webdriver.Chrome(options=options)
         driver.get(url)
 
-        time.sleep(5)
+        # وقت بسيط للتحميل
+        time.sleep(3)
 
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
-        driver.quit()
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        page_text = soup.text.lower()
 
         tickets_available = (
-            any(word.lower() in soup.text.lower() for word in keywords)
-            and "تم غلق الحجز" not in soup.text
+            any(word.lower() in page_text for word in keywords)
+            and "تم غلق الحجز" not in page_text
         )
 
         if tickets_available:
-            if not ticket_sent:
-                print("✅ التذاكر متاحة! إرسال إشعار...")
-                send_telegram_message(
-                    "🎟️ فيه تذاكر متاحة لـ Al Ahly FC!\nاحجز من هنا: https://www.tazkarti.com/#/matches"
-                )
-                ticket_sent = True
-            else:
-                print("✅ التذاكر متاحة لكن تم الإرسال قبل كده.")
+            print("🎟️ تم العثور على تذاكر للأهلي!")
+            send_telegram_message(
+                "🎟️ فيه تذاكر متاحة لمباريات الأهلي!\nاحجز بسرعة:\nhttps://www.tazkarti.com/#/matches"
+            )
         else:
-            print("❌ مفيش تذاكر مفتوحة للأهلي دلوقتي.")
+            print("❌ لا توجد تذاكر متاحة حاليًا.")
 
     except Exception as e:
-        print("⚠️ حصل خطأ:", e)
+        print("⚠️ حدث خطأ أثناء الفحص:", e)
 
-# تشغيل كل 10 ثواني بالظبط
-interval = 10
+    finally:
+        if driver:
+            driver.quit()
 
-while True:
-    start_time = time.time()
 
+if __name__ == "__main__":
     check_tickets()
-
-    elapsed = time.time() - start_time
-    sleep_time = interval - elapsed
-
-    if sleep_time > 0:
-        time.sleep(sleep_time)
-
