@@ -1,73 +1,49 @@
--- coding: utf-8 --
-
+# -*- coding: utf-8 -*-
 import requests
 from bs4 import BeautifulSoup
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-import time
-
-إعدادات تليجرام
+import os
 
 BOT_TOKEN = '7204967716:AAGJZ5lGRqcn0DNR2zJelfRqCFpZOvGeN8U'
 CHAT_ID = '1103230055'
+URL = "https://www.tazkarti.com/#/matches"
+KEYWORDS = ["الأهلي", "Al Ahly", "Ahly", "AL-AHLY", "Al Ahly FC"]
+DATA_FILE = "sent_matches.txt"
 
-كلمات البحث
+def send_telegram(msg):
+    requests.post(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+        data={"chat_id": CHAT_ID, "text": msg}
+    )
 
-keywords = ["الأهلي", "Al Ahly", "Ahly", "AL-AHLY", "Al Ahly FC"]
+def load_sent_matches():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return set(line.strip() for line in f)
+    return set()
 
-رابط الموقع
+def save_sent_match(match_name):
+    with open(DATA_FILE, "a", encoding="utf-8") as f:
+        f.write(match_name + "\n")
 
-url = "https://www.tazkarti.com/#/matches"
+def check_matches():
+    try:
+        r = requests.get(URL)
+        page_text = r.text.lower()
 
-إعداد Selenium
+        sent_matches = load_sent_matches()
+        # ابحث عن أي ماتش للكلمات المفتاحية
+        new_matches = [kw for kw in KEYWORDS if kw.lower() in page_text and kw not in sent_matches]
 
-options = Options()
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
+        for match in new_matches:
+            send_telegram(f"🎟️ فتح حجز تذاكر لماتش: {match}\nاحجز هنا:\n{URL}")
+            save_sent_match(match)
+            print(f"✅ تم إرسال رسالة لماتش: {match}")
 
-def send_telegram_message(message):
-telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-payload = {"chat_id": CHAT_ID, "text": message}
-try:
-requests.post(telegram_url, data=payload)
-print("✅ تم إرسال رسالة تليجرام")
-except Exception as e:
-print("❌ فشل إرسال الرسالة:", e)
+        if not new_matches:
+            print("لا توجد مباريات جديدة اليوم")
 
-def check_tickets():
-print("⏳ جاري فحص موقع تذكرتي...")
+    except Exception as e:
+        print("⚠️ حدث خطأ أثناء الفحص:", e)
 
-driver = None  
-try:  
-    driver = webdriver.Chrome(options=options)  
-    driver.get(url)  
-
-    # وقت بسيط للتحميل  
-    time.sleep(3)  
-
-    soup = BeautifulSoup(driver.page_source, "html.parser")  
-    page_text = soup.text.lower()  
-
-    tickets_available = (  
-        any(word.lower() in page_text for word in keywords)  
-        and "تم غلق الحجز" not in page_text  
-    )  
-
-    if tickets_available:  
-        print("🎟️ تم العثور على تذاكر للأهلي!")  
-        send_telegram_message(  
-            "🎟️ فيه تذاكر متاحة لمباريات الأهلي!\nاحجز بسرعة:\nhttps://www.tazkarti.com/#/matches"  
-        )  
-    else:  
-        print("❌ لا توجد تذاكر متاحة حاليًا.")  
-
-except Exception as e:  
-    print("⚠️ حدث خطأ أثناء الفحص:", e)  
-
-finally:  
-    if driver:  
-        driver.quit()
-
-if name == "main":
-check_tickets()
+if __name__ == "__main__":
+    check_matches()
